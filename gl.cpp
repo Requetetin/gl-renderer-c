@@ -89,6 +89,12 @@ void glVertex(float x, float y){
     framebuffer[posy][posx][2] = color [0];
 }
 
+void glVertex(int x, int y){
+    framebuffer[y][x][0] = color[2];
+    framebuffer[y][x][1] = color[1];
+    framebuffer[y][x][2] = color[0];
+}
+
 void glLine(float x0, float y0, float x1, float y1)
 {
     float dy = y1 - y0;
@@ -193,7 +199,7 @@ void glViewPort(int x, int y, int width, int height)
     vpHeight = height;
 }
 
-void glObj(const char * path)
+void glObj(const char * path, float scaleX, float scaleY, float translateX, float translateY)
 {
 
     FILE* file = fopen(path, "r");
@@ -206,6 +212,7 @@ void glObj(const char * path)
         break;
 
         if (strcmp(lineHeader, "v") == 0){
+            //cout << "Vertice" << endl;
             vec3 localvertex;
             fscanf(file, "%f %f %f\n", &localvertex.x, &localvertex.y, &localvertex.z);
             vertex.push_back(localvertex);
@@ -216,11 +223,13 @@ void glObj(const char * path)
             uvs.push_back(localuv);
             //cout << uvs[0].x << endl;
         }else if (strcmp(lineHeader, "vn") == 0){
+            //cout << "normal" << endl;
             vec3 localnormal;
             fscanf(file, "%f %f %f\n", &localnormal.x, &localnormal.y, &localnormal.z);
             normals.push_back(localnormal);
             //cout << normals[0].x << endl;
         }else if (strcmp(lineHeader, "f") == 0){
+            //cout << "cara" << endl;
             unsigned int vertexI[3], uvI[3], normalI[3];
             fscanf(file, "%d//%d %d//%d %d//%d\n", &vertexI[0], &normalI[0], &vertexI[1], &normalI[1], &vertexI[2], &normalI[2] );
             vertexIndex.push_back(vertexI[0]);
@@ -234,20 +243,56 @@ void glObj(const char * path)
         }
     }
 
+    vector < vec3 >  transformVertex;
+    for(int i=0; i<vertex.size(); i++){
+        vec3 vertexTemp;
+        vertexTemp.x = vertex[i].x * scaleX + translateX;
+        vertexTemp.y = vertex[i].y * scaleY + translateY;
+        transformVertex.push_back(vertexTemp);
+        //cout << vertexTemp.x << endl;
+    }
+
     for(int i=0; i<vertexIndex.size(); i = i+3){
-        glLine(vertex[vertexIndex[i]].x/15, (vertex[vertexIndex[i]].y/15)-0.5, vertex[vertexIndex[i+1]].x/15, (vertex[vertexIndex[i+1]].y/15)-0.5);
-        glLine(vertex[vertexIndex[i+1]].x/15, (vertex[vertexIndex[i+1]].y/15)-0.5, vertex[vertexIndex[i+2]].x/15, (vertex[vertexIndex[i+2]].y/15)-0.5);
-        glLine(vertex[vertexIndex[i+3]].x/15, (vertex[vertexIndex[i+3]].y/15)-0.5, vertex[vertexIndex[i]].x/15, (vertex[vertexIndex[i]].y/15)-0.5);
+        int ia = vertexIndex[i] - 1;
+        int ib = vertexIndex[i+1] - 1;
+        int ic = vertexIndex[i+2] - 1;
+        
+        vec3 va = transformVertex[ia];
+        vec3 vb = transformVertex[ib];
+        vec3 vc = transformVertex[ic];
+        //cout << va.x << " " << vb.x << " " << vc.x << endl;
+        glLine(va.x, va.y, vb.x, vb.y);
+        glLine(vb.x, vb.y, vc.x, vc.y);
+        glLine(vc.x, vc.y, va.x, va.y);
     }
     
+}
+
+void glFill(int x, int y){
+    if(framebuffer[y][x][0] == clearColor[2] 
+    && framebuffer[y][x][1] == clearColor[1] 
+    && framebuffer[y][x][2] == clearColor[0] 
+    && (x < 1024 && x >-1 && y > -1 && y < 768)){
+        //cout << "x: " << x << ", y: " << y << endl;
+        glVertex(x, y);
+        glFill(x, y+1);
+        glFill(x, y-1);
+        glFill(x+1, y);
+        //glFill(x-1, y);
+    }
 }
 
 
 int main()
 {
     glInit();
-    glObj("Samus.obj");
-    //cout << vertexIndex.size() << endl << vertex.size() << endl;
+    glLine(-0.8, -0.8, 0.5, -0.8);
+    glLine(0.5, -0.8, 0.5, 0.5);
+    glLine(0.5, 0.5, -0.8, -0.8);
+    glFill(512, 700);
+    /*glViewPort(512, 364, 768, 768);
+    //glObj("Cube.obj", 0.5, 0.5, 0, 0);
+    glObj("Samus.obj", 0.067, 0.067, 0, -0.5);*/
     glFinish();
     return 0;
 }
