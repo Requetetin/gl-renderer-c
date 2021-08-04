@@ -155,7 +155,65 @@ void glLine(float x0, float y0, float x1, float y1)
     }
 }
 
+void glLine(int x0, int y0, int x1, int y1)
+{
+    float dy = y1 - y0;
+    float dx = x1 - x0;
+    float m = dy / dx;
+    bool negative = m < 0;
+    dy = abs(y1 - y0);
+    dx = abs(x1 - x0);
+    bool steep = dy > dx;
+    if(steep){
+        swap(x0, y0);
+        swap(x1, y1);
+        dy = abs(y1 - y0);
+        dx = abs(x1 - x0);
+    }
+    m = dy / dx;
 
+    if(!negative){
+        if (x1 > x0){
+            for(int x = x0; x < x1; x++){
+                int y = y1 - m * (x1 - x);
+                if(steep){
+                    glVertex(y, x);
+                }else{
+                    glVertex(x, y);
+                }
+            }
+        }else{
+            for(int x = x0; x > x1; x--){
+                int y = y1 - m * (x1 - x);
+                if(steep){
+                    glVertex(y, x);
+                }else{
+                    glVertex(x, y);
+                }
+            }
+        }
+    }else{
+        if (x1 > x0){
+            for(int x = x0; x < x1; x ++){
+                int y = y1 + m * (x1 - x);
+                if(steep){
+                    glVertex(y, x);
+                }else{
+                    glVertex(x, y);
+                }
+            }
+        }else{
+            for(int x = x0; x > x1; x--){
+                int y = y1 + m * (x1 - x);
+                if(steep){
+                    glVertex(y, x);
+                }else{
+                    glVertex(x, y);
+                }
+            }
+        }
+    }
+}
 
 /*
 *
@@ -278,21 +336,53 @@ void glFill(int x, int y){
         glFill(x, y+1);
         glFill(x, y-1);
         glFill(x+1, y);
-        //glFill(x-1, y);
+        glFill(x-1, y);
     }
+}
+
+void drawShapes(){
+    vector <vector <int>> shape1 = {{165, 380}, {185, 360}, {180, 330}, {207, 345}, {233, 330}, {230, 360}, {250, 380}, {220, 385}, {205, 410}, {193, 383}};
+    vector <vector <int>> shape2 = {{321, 335}, {288, 286}, {339, 251}, {374, 302}};
+    vector <vector <int>> shape3 = {{377, 249}, {411, 197}, {436, 249}};
+    vector <vector <int>> shape4 = {{413, 177}, {448, 159}, {502, 88}, {553, 53}, {535, 36}, {676, 37}, {660, 52}, {750, 145}, {761, 179}, {672, 192}, {659, 214}, {615, 214}, {632, 230}, {580, 230}, {597, 215}, {552, 214}, {517, 144}, {466, 180}};
+    vector <vector <int>> shape5 = {{682, 175}, {708, 120}, {735, 148}, {739, 170}};
+
+    for(int i=0; i < shape1.size(); i++){
+        glLine(shape1[i][0], shape1[i][1], shape1[(i+1)%10][0], shape1[(i+1)%10][1]);
+    }
+    for(int i=0; i < shape2.size(); i++){
+        glLine(shape2[i][0], shape2[i][1], shape2[(i+1)%4][0], shape2[(i+1)%4][1]);
+    }
+    for(int i=0; i < shape3.size(); i++){
+        glLine(shape3[i][0], shape3[i][1], shape3[(i+1)%3][0], shape3[(i+1)%3][1]);
+    }
+    for(int i=0; i < shape4.size(); i++){
+        glLine(shape4[i][0], shape4[i][1], shape4[(i+1)%18][0], shape4[(i+1)%18][1]);
+    }
+    for(int i=0; i < shape5.size(); i++){
+        glLine(shape5[i][0], shape5[i][1], shape5[(i+1)%4][0], shape5[(i+1)%4][1]);
+    }
+
 }
 
 
 int main()
 {
     glInit();
-    glLine(-0.8, -0.8, 0.5, -0.8);
-    glLine(0.5, -0.8, 0.5, 0.5);
-    glLine(0.5, 0.5, -0.8, -0.8);
-    glFill(512, 700);
-    /*glViewPort(512, 364, 768, 768);
-    //glObj("Cube.obj", 0.5, 0.5, 0, 0);
-    glObj("Samus.obj", 0.067, 0.067, 0, -0.5);*/
+    /* Shapes fill */
+    /*
+    drawShapes();
+    glFill(200, 380);
+    glFill(300, 300);
+    glFill(411, 220);
+    glFill(600, 200);
+    */
+    /* Square viewport for a good view of the models */
+    /*
+    glViewPort(512, 364, 768, 768);
+    glObj("Cube.obj", 0.5, 0.5, 0, 0);
+    glObj("Samus.obj", 0.067, 0.067, 0, -0.5);
+    */
     glFinish();
     return 0;
 }
