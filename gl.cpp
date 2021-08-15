@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
+#include <algorithm>
 #include "glm/glm.hpp"
 #define byte uint8_t
 using namespace std;
@@ -14,7 +15,9 @@ int width, height;
 byte bmpfileheader[14] = {'B', 'M', 0,0,0,0, 0,0,0,0, 54,0,0,0};
 byte bmpinfoheader[40] = {40,0,0,0, 0,0,0,0, 0,0,0,0, 1,0, 24,0};
 byte framebuffer[768][1024][3];
+float zbuffer[768][1024];
 int vpX, vpY, vpWidth, vpHeight;
+vec3 light = {0, 0, 1};
 
 int filesize;
 
@@ -28,6 +31,61 @@ byte clearColor[3] = {0, 0, 0};
 byte color[3] = {255, 255, 255};
 
 
+vec3 crossProd(vec3 v0, vec3 v1) {
+    return {
+        v0.y * v1.z - v0.z * v1.y,
+        v0.z * v1.x - v0.x * v1.z,
+        v0.x * v1.y - v0.y * v1.x
+    };
+}
+
+float dotProd(vec3 v0, vec3 v1) {
+    return v0.x * v1.x + v0.y + v1.y + v0.z * v1.z;
+}
+
+float vecLength(vec3 v) {
+    return pow(v.x * v.x + v.y * v.y + v.z * v.z, 0.5);
+}
+
+vec3 norm(vec3 v) {
+    float length = vecLength(v);
+
+    if (!length) {
+        return {0, 0, 0};
+    }
+
+    return {
+        v.x/length, v.y/length, v.z/length
+    };
+}
+
+vec3 doubleCross(vec3 A, vec3 B, vec3 C) {
+    return crossProd(
+        {B.x - A.x, B.y - A.y, B.z - A.z},
+        {C.x - A.x, C.y - A.y, C.z - A.z}
+    );
+}
+
+vec3 barycentric(vec2 A, vec2 B, vec2 C, vec2 P) {
+    vec3 cross = crossProd(
+        {
+            B.x - A.x, C.x - A.x, A.x - P.x
+        }, 
+        {
+            B.y - A.y, C.y - A.y, A.y - P.y
+        }
+    );
+    //cout << cross.x << " " << cross.y << " " << cross.z << endl;
+
+    if (abs(cross.z) < 1) {
+        return {-1, -1, -1};
+    }
+
+    float u = cross.x / cross.z;
+    float v = cross.y / cross.z;
+    float w = 1 - (cross.x + cross.y) / cross.z;
+    return {w, v, u};
+}
 
 void fillHeader()
 {
@@ -58,6 +116,12 @@ void glClear()
             framebuffer[i][j][0] = clearColor[2];
             framebuffer[i][j][1] = clearColor[1];
             framebuffer[i][j][2] = clearColor[0];
+        }
+    }
+
+    for(int i = 0; i < height; i++) {
+        for(int j = 0; j < width; j++){
+            zbuffer[i][j] = -INFINITY;
         }
     }
 }
@@ -257,7 +321,61 @@ void glViewPort(int x, int y, int width, int height)
     vpHeight = height;
 }
 
-void glObj(const char * path, float scaleX, float scaleY, float translateX, float translateY)
+void triangle(vec3 A, vec3 B, vec3 C) {
+    vector <float> xs;
+    vector <float> ys;
+    xs.push_back(A.x);
+    xs.push_back(B.x);
+    xs.push_back(C.x);
+    ys.push_back(A.y);
+    ys.push_back(B.y);
+    ys.push_back(C.y);
+
+    if (A.x < 1) {
+        A.x = A.x * vpWidth/2 + vpX;
+        B.x = B.x * vpWidth/2 + vpX;
+        C.x = C.x * vpWidth/2 + vpX;
+        A.y = A.y * vpHeight/2 + vpY;
+        B.y = B.y * vpHeight/2 + vpY;
+        C.y = C.y * vpHeight/2 + vpY;
+    }
+
+    int xmin = *min_element(xs.begin(), xs.end()) * vpWidth/2 + vpX;
+    int ymin = *min_element(ys.begin(), ys.end()) * vpHeight/2 + vpY;
+    int xmax = *max_element(xs.begin(), xs.end()) * vpWidth/2 + vpX;
+    int ymax = *max_element(ys.begin(), ys.end()) * vpHeight/2 + vpY;
+
+    for (int i=xmin; i<xmax+1; i++) {
+        for (int j=ymin; j<ymax+1; j++) {
+            vec3 baryCoords = barycentric(A, B, C, {i, j});
+            //cout << "bary " << baryCoords.x << " " << baryCoords.y << " " << baryCoords.z << endl;
+            if (baryCoords.x < 0 || baryCoords.y < 0 || baryCoords.z < 0) {
+                continue;
+            }
+
+            vec3 normal = norm(doubleCross(A, B, C));
+
+            float intensity = dotProd(normal, light);
+
+            if (intensity < -1) {
+                intensity = -1;
+            } else if (intensity > 1) {
+                intensity = 1;
+            }
+
+            glColor(intensity, intensity, intensity);
+
+            float z = A.z * baryCoords.x + B.z * baryCoords.y + C.z * baryCoords.z;
+            if (z > zbuffer[i][j]) {
+                glVertex(i, j);
+                zbuffer[i][j] = z;
+            }
+        }
+    }
+
+}
+
+void glObj(const char * path, float scaleX, float scaleY, float scaleZ, float translateX, float translateY, float translateZ)
 {
 
     FILE* file = fopen(path, "r");
@@ -306,6 +424,7 @@ void glObj(const char * path, float scaleX, float scaleY, float translateX, floa
         vec3 vertexTemp;
         vertexTemp.x = vertex[i].x * scaleX + translateX;
         vertexTemp.y = vertex[i].y * scaleY + translateY;
+        vertexTemp.z = vertex[i].z * scaleZ + translateZ;
         transformVertex.push_back(vertexTemp);
         //cout << vertexTemp.x << endl;
     }
@@ -318,10 +437,8 @@ void glObj(const char * path, float scaleX, float scaleY, float translateX, floa
         vec3 va = transformVertex[ia];
         vec3 vb = transformVertex[ib];
         vec3 vc = transformVertex[ic];
-        //cout << va.x << " " << vb.x << " " << vc.x << endl;
-        glLine(va.x, va.y, vb.x, vb.y);
-        glLine(vb.x, vb.y, vc.x, vc.y);
-        glLine(vc.x, vc.y, va.x, va.y);
+        //cout << va.z << " " << vb.z << " " << vc.z << endl;
+        triangle(va, vb, vc);
     }
     
 }
@@ -341,48 +458,54 @@ void glFill(int x, int y){
 }
 
 void drawShapes(){
-    vector <vector <int>> shape1 = {{165, 380}, {185, 360}, {180, 330}, {207, 345}, {233, 330}, {230, 360}, {250, 380}, {220, 385}, {205, 410}, {193, 383}};
-    vector <vector <int>> shape2 = {{321, 335}, {288, 286}, {339, 251}, {374, 302}};
-    vector <vector <int>> shape3 = {{377, 249}, {411, 197}, {436, 249}};
-    vector <vector <int>> shape4 = {{413, 177}, {448, 159}, {502, 88}, {553, 53}, {535, 36}, {676, 37}, {660, 52}, {750, 145}, {761, 179}, {672, 192}, {659, 214}, {615, 214}, {632, 230}, {580, 230}, {597, 215}, {552, 214}, {517, 144}, {466, 180}};
-    vector <vector <int>> shape5 = {{682, 175}, {708, 120}, {735, 148}, {739, 170}};
-
+    vector <ivec2> shape1 = {ivec2(165, 380), ivec2(185, 360), ivec2(180, 330), ivec2(207, 345), ivec2(233, 330), ivec2(230, 360), ivec2(250, 380), ivec2(220, 385), ivec2(205, 410), ivec2(193, 383)};
+    vector <ivec2> shape2 = {ivec2(321, 335), ivec2(288, 286), ivec2(339, 251), ivec2(374, 302)};
+    vector <ivec2> shape3 = {ivec2(377, 249), ivec2(411, 197), ivec2(436, 249)};
+    vector <ivec2> shape4 = {ivec2(413, 177), ivec2(448, 159), ivec2(502, 88), ivec2(553, 53), ivec2(535, 36), ivec2(676, 37), ivec2(660, 52),
+                            ivec2(750, 145), ivec2(761, 179), ivec2(672, 192), ivec2(659, 214), ivec2(615, 214), ivec2(632, 230), ivec2(580, 230),
+                            ivec2(597, 215), ivec2(552, 214), ivec2(517, 144), ivec2(466, 180)};
+    vector <ivec2> shape5 = {ivec2(682, 175), ivec2(708, 120), ivec2(735, 148), ivec2(739, 170)};
     for(int i=0; i < shape1.size(); i++){
-        glLine(shape1[i][0], shape1[i][1], shape1[(i+1)%10][0], shape1[(i+1)%10][1]);
+        glLine(shape1[i].x, shape1[i].y, shape1[(i+1)%10].x, shape1[(i+1)%10].y);
     }
     for(int i=0; i < shape2.size(); i++){
-        glLine(shape2[i][0], shape2[i][1], shape2[(i+1)%4][0], shape2[(i+1)%4][1]);
+        glLine(shape2[i].x, shape2[i].y, shape2[(i+1)%4].x, shape2[(i+1)%4].y);
     }
     for(int i=0; i < shape3.size(); i++){
-        glLine(shape3[i][0], shape3[i][1], shape3[(i+1)%3][0], shape3[(i+1)%3][1]);
+        glLine(shape3[i].x, shape3[i].y, shape3[(i+1)%3].x, shape3[(i+1)%3].y);
     }
     for(int i=0; i < shape4.size(); i++){
-        glLine(shape4[i][0], shape4[i][1], shape4[(i+1)%18][0], shape4[(i+1)%18][1]);
+        glLine(shape4[i].x, shape4[i].y, shape4[(i+1)%18].x, shape4[(i+1)%18].y);
     }
     for(int i=0; i < shape5.size(); i++){
-        glLine(shape5[i][0], shape5[i][1], shape5[(i+1)%4][0], shape5[(i+1)%4][1]);
+        glLine(shape5[i].x, shape5[i].y, shape5[(i+1)%4].x, shape5[(i+1)%4].y);
     }
 
 }
 
+void setLight(int x, int y, int z) {
+    light.x = x;
+    light.y = y;
+    light.z = z;
+}
 
 int main()
 {
     glInit();
     /* Shapes fill */
-    /*
-    drawShapes();
+    
+    /*drawShapes();
     glFill(200, 380);
     glFill(300, 300);
     glFill(411, 220);
-    glFill(600, 200);
-    */
+    glFill(600, 200);*/
+    
     /* Square viewport for a good view of the models */
-    /*
-    glViewPort(512, 364, 768, 768);
-    glObj("Cube.obj", 0.5, 0.5, 0, 0);
-    glObj("Samus.obj", 0.067, 0.067, 0, -0.5);
-    */
+    
+    //glViewPort(512, 364, 768, 768);
+    setLight(0, 0, 5);
+    glObj("Samus.obj", 0.067, 0.067, 500, 0, -0.5, 0);
+    
     glFinish();
     return 0;
 }
