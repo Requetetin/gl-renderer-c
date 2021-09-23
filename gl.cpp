@@ -573,19 +573,11 @@ void triangle(vec3 A, vec3 B, vec3 C, vec2 tA, vec2 tB, vec2 tC) {
     ys.push_back(C.y);
 
     //cout << to_string(A) << " " << to_string(B) << " " << to_string(C) << " " << endl;  
-    if (A.x < 1) {
-        A.x = A.x * vpWidth/2 + vpX;
-        B.x = B.x * vpWidth/2 + vpX;
-        C.x = C.x * vpWidth/2 + vpX;
-        A.y = A.y * vpHeight/2 + vpY;
-        B.y = B.y * vpHeight/2 + vpY;
-        C.y = C.y * vpHeight/2 + vpY;
-    }
 
-    int xmin = *min_element(xs.begin(), xs.end()) * vpWidth/2 + vpX;
-    int ymin = *min_element(ys.begin(), ys.end()) * vpHeight/2 + vpY;
-    int xmax = *max_element(xs.begin(), xs.end()) * vpWidth/2 + vpX;
-    int ymax = *max_element(ys.begin(), ys.end()) * vpHeight/2 + vpY;
+    int xmin = *min_element(xs.begin(), xs.end());
+    int ymin = *min_element(ys.begin(), ys.end());
+    int xmax = *max_element(xs.begin(), xs.end());
+    int ymax = *max_element(ys.begin(), ys.end());
 
     //cout << xmin << " " << ymin << " " << xmax << " " << ymax << endl;
     vec3 baryCoords;
@@ -638,6 +630,9 @@ void triangle(vec3 A, vec3 B, vec3 C, vec2 tA, vec2 tB, vec2 tC) {
             z = A.z * w + B.z * v + C.z * u;
             if (z > zbuffer[i][j]) {
                 //cout << i << " " << j << " " << intensity << endl;
+                if (i > 1023 || j > 767 || i < 0 || j < 0) {
+                    continue;
+                }
                 glVertex(i, j);
                 zbuffer[i][j] = z;
             }
@@ -695,13 +690,21 @@ void triangle(vec3 A, vec3 B, vec3 C) {
 }
 
 vec3 transform(vec3 vertex) {
-    //cout << vertex.x << endl;
+    //cout << to_string(vertex) << endl;
     vec4 tempVec = {vertex.x, vertex.y, vertex.z, 1};
     //cout << to_string(tempVec) << endl;
     //cout << "viewport " << to_string(viewport_mat) << endl << "projection " << to_string(projection_mat) << endl << "view " << to_string(view_mat) << endl << "model " << to_string(model_mat) << endl;
     //cout << to_string(viewport_mat) << endl;
+    mat4 projectionMatrix = glm::perspective(
+        (float)glm::radians((float)45),
+        (float)width/(float)height,
+        0.1f,
+        100.0f
+    );
+
+    //cout << to_string(projectionMatrix);
     
-    final_mat = projection_mat * view_mat * model_mat;
+    final_mat = viewport_mat * projectionMatrix * view_mat * model_mat;
     //cout << to_string(final_mat) << endl;
 
     vec4 transformedVertex = final_mat * tempVec;
@@ -712,17 +715,15 @@ vec3 transform(vec3 vertex) {
     //cout << endl << to_string(viewport_mat * projection_mat * view_mat * model_mat) << endl;
     //cout << endl << to_string(viewport_mat * projection_mat * view_mat * model_mat * tempVec) << endl;
     //cout << to_string(transformedVertex) << endl;
-    float x = transformedVertex[0] / transformedVertex[3];
-    float y = transformedVertex[1] / transformedVertex[3];
-    float z = transformedVertex[2] / transformedVertex[3];
+    int x = transformedVertex[0] / transformedVertex[3];
+    int y = transformedVertex[1] / transformedVertex[3];
+    int z = transformedVertex[2] / transformedVertex[3];
     //cout << x << " y: " << y << " z: " << z << endl;
     vec3 finalVertex = {
-        x,
-        y,
-        z
+        x, y, z
     };
 
-    //cout << to_string(finalVertex) << endl;
+    cout << to_string(finalVertex) << endl;
 
     return finalVertex;
 }
@@ -770,6 +771,7 @@ void loadModelMatrix(vec3 translation, vec3 scaling, vec3 rotation) {
     );
 
     model_mat = translation_mat * rotation_mat * scale_mat;
+    //cout << to_string(model_mat);
 }
 
 void loadProjectionMatrix(float coeff) {
@@ -777,7 +779,7 @@ void loadProjectionMatrix(float coeff) {
       1, 0, 0, 0,
       0, 1, 0, 0,
       0, 0, 1, 0,
-      0, 0, coeff, 1  
+      0, coeff, 0, 1  
     );
 }
 
@@ -800,7 +802,7 @@ void loadViewMatrix(vec3 x, vec3 y, vec3 z, vec3 center) {
         0, 0, 0, 1
     );
 
-    //cout << to_string(m);
+    //cout << "m" << to_string(m) << endl << endl;
 
     mat4x4 o = mat4 (
         1, 0, 0, -center.x,
@@ -808,6 +810,7 @@ void loadViewMatrix(vec3 x, vec3 y, vec3 z, vec3 center) {
         0, 0, 1, -center.z,
         0, 0, 0, 1
     );
+    //cout << "o" << to_string(o) << endl << endl;
 
     view_mat = m * o;
 }
@@ -822,9 +825,9 @@ void lookAt(vec3 eye, vec3 center, vec3 up) {
 
     vec3 y = norm(crossProd(z, x));
     //cout << to_string(y);
-
+    //cout << 1/length(eye - center);
     loadViewMatrix(x, y, z, center);
-    loadProjectionMatrix(-1/length(eye - center));
+    loadProjectionMatrix(-0.0009);
     loadViewportMatrix(0, 0);
 }
 
@@ -1043,7 +1046,7 @@ int main()
     
     
     vec3 translate = {0, 0, 0};
-    vec3 scale = {0.5, 0.5, 0.5};
+    vec3 scale = {0.05, 0.05, 0.05};
     vec3 rotation = {0, 0, 0};
     vec3 eye = {0, 0, 5};
     vec3 center = {0, 0, 0};
