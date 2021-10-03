@@ -25,7 +25,12 @@ float zbuffer[768][1024];
 int vpX, vpY, vpWidth, vpHeight;
 vec3 light = {0, 0, 1};
 int textWidth, textHeight;
+int normWidth, normHeight;
 vector < vec3 > loadedTexture;
+vector < vec3 > loadedNormal;
+vec3 vertexTemp, va, vb, vc, na, nb, nc;
+vec2 ta, tb, tc;
+bool hasNormal = false;
 
 
 int filesize;
@@ -312,6 +317,12 @@ void glClearColor(float r, float g, float b)
     clearColor[2] = b * 255;
 }
 
+void glClearColor(int r, int g, int b) {
+    clearColor[0] = r;
+    clearColor[1] = g;
+    clearColor[2] = b;
+}
+
 void glColor(float r, float g, float b)
 {
     color[0] = r * 255;
@@ -593,7 +604,7 @@ void triangle(vec3 A, vec3 B, vec3 C, vec2 tA, vec2 tB, vec2 tC) {
     vec3 normal = norm(crossProd((B - A), (C - A)));
     //cout << to_string(normal) << endl;
     float intensity = dotProd(normal, light);
-    float w, v, u, z, tx, ty;
+    float w, v, u, z, tx, ty, nx, ny, nz;
     int x, y, textPos, r, g, b;
     for (int i=xmin; i<xmax+1; i++) {
         for (int j=ymin; j<ymax+1; j++) {
@@ -628,6 +639,18 @@ void triangle(vec3 A, vec3 B, vec3 C, vec2 tA, vec2 tB, vec2 tC) {
             r = loadedTexture[textPos].x * intensity;
             g = loadedTexture[textPos].y * intensity;
             b = loadedTexture[textPos].z * intensity;
+
+
+            if (hasNormal) {
+                nx = na.x * w + nb.x * u + nc.x * v;
+                ny = na.y * w + nb.y * u + nc.y * v;
+                nz = na.z * w + nb.z * u + nc.z * v;
+                r *= (nx * 0.5 + 0.5);
+                g *= (ny * 0.5 + 0.5);
+                b *= (nz * 0.5 + 0.5);
+
+                //cout << r << " " << g << " " << b << endl;
+            }
 
             //cout << r << " " << g << " " << b << endl;
 
@@ -747,7 +770,7 @@ vec3 transform(vec3 vertex) {
 }
 
 void loadModelMatrix(vec3 translation, vec3 scaling, vec3 rotation) {
-    mat4x4 translation_mat, xrotation_mat, yrotation_mat, zrotation_mat, rotation_mat, scale_mat;
+    mat4 translation_mat, xrotation_mat, yrotation_mat, zrotation_mat, rotation_mat, scale_mat;
     translation_mat = mat4(
         1, 0, 0, translation.x,
         0, 1, 0, translation.y,
@@ -918,9 +941,7 @@ void glObj(const char * path, int type, vec3 translate, vec3 scale, vec3 rotatio
     loadModelMatrix(translate, scale, rotation);
 
     vector < vec3 >  transformVertex;
-    vec3 vertexTemp, va, vb, vc;
-    vec2 ta, tb, tc;
-    int ia, ib, ic, ja, jb, jc;
+    int ia, ib, ic, ja, jb, jc, ka, kb, kc;
     //cout << vertex.size();
     for(int i=0; i<vertex.size(); i++){
         //cout << "Pre " << to_string(vertex[i]) << endl;
@@ -963,6 +984,16 @@ void glObj(const char * path, int type, vec3 translate, vec3 scale, vec3 rotatio
             ta = uvs[ja];
             tb = uvs[jb];
             tc = uvs[jc];
+
+            if (loadedNormal.size()) {
+                ka = normalIndex[i] - 1;
+                kb = normalIndex[i+1] - 1;
+                kc = normalIndex[i+2] - 1;
+                na = normals[ka];
+                nb = normals[kb];
+                nc = normals[kc];
+                hasNormal = true;
+            }
 
             triangle(va, vb, vc, ta, tb, tc);
         }
@@ -1018,6 +1049,7 @@ void setLight(int x, int y, int z) {
 }
 
 void texture(const char * path) {
+    loadedTexture.clear();
     long lsize;
     byte * buffer;
     FILE* file = fopen(path, "rb");
@@ -1048,6 +1080,39 @@ void texture(const char * path) {
     fclose(file);
 }
 
+void loadNormal(const char * path) {
+    loadedNormal.clear();
+    long lsize;
+    byte * buffer;
+    FILE* file = fopen(path, "rb");
+    byte header[54];
+    fread(header, sizeof(byte), 54, file);
+    int headerOffset = *(int*) &header[14] + 14;
+    int width = *(int*) &header[18];
+    int height = *(int*) &header[22];
+    normWidth = width;
+    normHeight = height;
+    byte* normal = new byte [width * height * 3];
+    fseek(file, headerOffset, SEEK_SET);
+    fread(normal, sizeof(byte), width * height * 3, file);
+    vec3 pixelColor;
+    byte b, g, r;
+    int y, x;
+    for (int i=0; i < width * height * 3; i += 3) {
+        b = normal[i];
+        g = normal[i+1];
+        r = normal[i+2];
+        y = i / width;
+        x = i % width;
+        pixelColor.x = r;
+        pixelColor.y = g;
+        pixelColor.z = b;
+        loadedNormal.push_back(pixelColor);
+    }
+    fclose(file);
+}
+
+
 int main()
 {
     glInit();
@@ -1062,7 +1127,7 @@ int main()
     /* Square viewport for a good view of the models */
     //glClearColor(1, 0, 0);
     //glClear();
-    setLight(0, 5, 0);
+    setLight(0, 0, 5);
      // Samus obj load
     
     
@@ -1073,15 +1138,37 @@ int main()
     
     
     vec3 translate = {0, 0, 0};
-    vec3 scale = {0.05, 0.05, 500};
+    vec3 scale = {0.01, 0.01, 50};
     vec3 rotation = {0, 0, 0};
     vec3 eye = {0, 0, 5};
     vec3 center = {0, 0, 0};
     vec3 up = {0, 1, 0};
     lookAt(eye, center, up);
+    glClearColor(3, 165, 252);
+    glClear();
     //glObj("Samus.obj", 2, translate, scale, rotation);
-    //texture("model.bmp");
-    glObj("model.obj", 1, translate, scale, rotation); 
+
+    //Blanco
+    texture("white.bmp");
+    glObj("among.obj", 1, {0, 1, -0.001}, scale, rotation);
+
+    //Verde
+    texture("green.bmp");
+    glObj("among.obj", 1, {7, 3, 0}, scale, {0, 0, 0});
+
+    //Amarillo
+    texture("yellow.bmp");
+    glObj("among.obj", 1, {-5, 0, 0}, scale, rotation);
+
+    //Azul
+    texture("blue.bmp");
+    glObj("among.obj", 1, {0, -1, 0.0005}, scale, rotation);
+
+    //Rojo
+    //Aplicado mapa normal
+    texture("among.bmp");
+    loadNormal("normal.bmp");
+    glObj("among.obj", 1, {-7, 3, 0}, scale, rotation);
     //cout << to_string(model_mat) << endl;
     cout << "done";
     
