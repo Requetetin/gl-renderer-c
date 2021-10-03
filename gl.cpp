@@ -1116,26 +1116,7 @@ void loadNormal(const char * path) {
 int main()
 {
     glInit();
-    /* Shapes fill */
-    
-    /*drawShapes();
-    glFill(200, 380);
-    glFill(300, 300);
-    glFill(411, 220);
-    glFill(600, 200);*/
-    
-    /* Square viewport for a good view of the models */
-    //glClearColor(1, 0, 0);
-    //glClear();
     setLight(0, 0, 5);
-     // Samus obj load
-    
-    
-
-    //glObj("Book2.obj", 0.25, 0.25, 100, 0, 0, 0, 1);
-    //glObj("sphere.obj", 0.5, 0.5, 5000, 0, 0, 0, 1);
-    
-    
     
     vec3 translate = {0, 0, 0};
     vec3 scale = {0.01, 0.01, 50};
@@ -1146,7 +1127,6 @@ int main()
     lookAt(eye, center, up);
     glClearColor(3, 165, 252);
     glClear();
-    //glObj("Samus.obj", 2, translate, scale, rotation);
 
     //Blanco
     texture("white.bmp");
@@ -1169,12 +1149,8 @@ int main()
     texture("among.bmp");
     loadNormal("normal.bmp");
     glObj("among.obj", 1, {-7, 3, 0}, scale, rotation);
-    //cout << to_string(model_mat) << endl;
-    cout << "done";
-    
-    //cout << to_string(loadedTexture[0]);
 
-    
+    cout << "done";
 
     glFinish();
     return 0;
