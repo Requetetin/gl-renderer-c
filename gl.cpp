@@ -60,7 +60,7 @@ vec3 crossProd(vec3 v0, vec3 v1) {
 
 float dotProd(vec3 v0, vec3 v1) {
     //cout << to_string(v0) << " and " << to_string(v1) << endl;
-    return v0.x * v1.x + v0.y + v1.y + v0.z * v1.z;
+    return v0.x * v1.x + v0.y * v1.y + v0.z * v1.z;
 }
 
 float vecLength(vec3 v) {
